@@ -29,7 +29,7 @@ Dim objFso : Set objFso = CreateObject("Scripting.FileSystemObject")
 Dim PntClient : Set PntClient = CreateObject("CxPnt.PntClient")
 Dim fileOut : Set fileOut = objFso.CreateTextFile("C:\CygNet\Scripts\TempGood\LiquidMeterWater " & NowDateGet & ".csv")
 Dim logFile : Set logFile = objFso.CreateTextFile("C:\CygNet\Scripts\TempLog\LiquidMeterWaterLog.txt")
-Dim BadFile : Set BadFile = objFso.CreateTextFile("C:\CygNet\Scripts\Bad\LiquidMeterWaterBad.txt")
+Dim badFile : Set badFile = objFso.CreateTextFile("C:\CygNet\Scripts\Bad\LiquidMeterWaterBad.txt")
 Dim objGlobFunc : Set objGlobFunc = CreateObject("CxScript.GlobalFunctions")
 
 'Print the header of the ProdView 
@@ -37,8 +37,8 @@ fileOut.Writeline "prodview scada import"
 fileOut.Writeline "1.0"
 fileOut.Writeline "imperial"
 
-BadFile.Writeline "Facility ID & Tank Description | Reason For Failure"  
-BadFile.Writeline "---------------------------------------------------"
+badFile.Writeline "Facility ID & Tank Description | Reason For Failure"  
+badFile.Writeline "---------------------------------------------------"
 
 'Connect
 PntClient.Connect(sitePNT)
@@ -47,7 +47,7 @@ objFac.UpdateNow()
 
 'Log 
 Call LogHeader(LogLevel)
-Call WriteLogSucc("Successfully created all objects",LogLevel)
+Call WriteLogSucc("Successfully created all objects", LogLevel)
 
 'Global Function Objects
 Dim f_site : f_site = "FRANK"
@@ -67,7 +67,7 @@ Next
 Call Copy("C:\CygNet\Scripts\TempGood", "\\wstr.com\ftp\CYGNET\PRD", "LiquidMeterWater " & NowDateGet & ".csv")
 fileOut.close
 logFile.close
-BadFile.close
+badFile.close
 
 'Archive 
 Call Archive("C:\CygNet\Scripts\TempGood\LiquidMeterWater " & NowDateGet & ".csv", "C:\CygNet\Scripts\Archive\LiquidMeterWater " & NowDateGet & ".csv")
@@ -130,7 +130,6 @@ Function GetXMLCurrentValues(strSiteServ, strFacType)
 End Function
 
 Function PrepareDictionary(strPntXML, strFacType)
-    'Setting up good and bad file dictioinaries
     Dim currPointObj : Set currPointObj = CreateObject("CxScript.Points")
     Dim objXML : Set objXML = CreateObject("Msxml2.DOMDocument.6.0")
 	objXML.async = False
@@ -194,26 +193,24 @@ Sub WriteToFile(D1)
 	BSandW = 100
 	
 	'Now we print out our Dictionary | Log
-	arrD1Keys = D1.Keys 'Top level dictionary with FacIDs as keys
-	Call WriteLogSucc("Dictionary of Created",LogLevel)
-    
-    dictionary.Item(strFacTag).Item(strCygTag).Add "UDC", strUdc
+	arrD1Keys = D1.Keys 'D1 is Top level dictionary with FacIDs as keys    
 
     For i = 0 to UBound(arrD1Keys) 
-        Set D2 = D1.Item(arrD1Keys(i)) 'Facility dictionary with PointTags as keys
+        Set D2 = D1.Item(arrD1Keys(i)) 'D2 is the Facility dictionary with PointTags as keys
+        arrD2Keys = D2.Keys
         For j = 0 to UBound(arrD2Keys)
-            Set D3 = D2.Item(arrD1Keys(i)) 'Point dictionary filled with point info
+            Set D3 = D2.Item(arrD2Keys(j)) 'D3 is the Point dictionary filled with point info
             If D3.Item("Quality") = "Good" Then
                 If CInt(D3.Item("Value")) >= 0 Then
                     fileOut.Writeline "LIQUID METER," & D3.Item("Desc") & " Water" & "," & D3.Item("PointID")) & "," & TimeStampVal & "," & D3.Item("Value") & "," & BSandW
                 End If
             Else
-                BadFile.Writeline arrD2Keys(i) & "|" & D3.Item("Quality")
+                badFile.Writeline arrD2Keys(j) & "|" & D3.Item("Quality")
             End If
         Next
 	Next
 	
-	Call WriteLogSucc("Facility Type finished getting values. ",LogLevel)
+	Call WriteLogSucc("Facility Type finished getting values for " & D1.Item("Type"), LogLevel)
 End Sub
 
 Sub WriteLogSucc(str, level)
