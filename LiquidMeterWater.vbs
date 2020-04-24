@@ -47,7 +47,7 @@ objFac.UpdateNow()
 
 'Log 
 Call LogHeader(LogLevel)
-Call WriteLogSucc("Successfully created all objects", LogLevel)
+Call WriteLogSucc("Successfully created all objects", 2)
 
 'Global Function Objects
 Dim f_site : f_site = "FRANK"
@@ -60,7 +60,7 @@ objGlobFunc.setpoint f_status, "In-Progress", now
 Dim arrFacTypes : arrFacTypes = Array("OIL_PAD", "OIL_WELLS", "SWD_WELLS")
 For i = 0 to UBound(arrFacTypes)
     Call WriteToFile(PrepareDictionary(GetXMLCurrentValues(siteUIS, arrFacTypes(i)), arrFacTypes(i)))
-    Call WriteLogSucc("Successfully processed " & arrFacTypes(i), LogLevel)
+    Call WriteLogSucc("Successfully processed " & arrFacTypes(i), 2)
 Next
 
 'FTP Copy over
@@ -88,13 +88,13 @@ Function GetXMLCurrentValues(strSiteServ, strFacType)
     'The input is an entire TagList from the GetFacilityTagList function
     Dim objFac : Set objFac = CreateObject("CxScript.Facilities")
     Dim objPoints : Set objPoints = CreateObject("CxScript.Points")	
-    Dim strXML, arrPoints(), i, j, tag, maxCount, arrTagList, pntArrayCnt, strFacType, strFacTag
+    Dim strXML, arrPoints(), i, j, tag, maxCount, arrTagList, pntArrayCnt, strFacTag
 
     objFac.GetFacilityTagList strSiteServ, "facility_is_active=Y;facility_type=" & strFacType, arrTagList
     Redim arrPoints(UBound(arrTagList) + 1)
 
 	'Log
-	Call WriteLogInfo(strFacType & "|Getting " & UBound(arrTagList) + 1 & " data points from " & UBound(arrTagList) + 1 & "facilities", LogLevel)
+	Call WriteLogInfo(strFacType & "|Getting " & UBound(arrTagList) + 1 & " data points from " & UBound(arrTagList) + 1 & "facilities", 2)
 	
 	'Loop to create a long XML string
 	strXML = "<cygPtInfo><Parameters><Value /><timestamp /><activestatus /></Parameters><Points>"
@@ -118,7 +118,7 @@ Function GetXMLCurrentValues(strSiteServ, strFacType)
 	strXML = strXML & "</Points></cygPtInfo>"
 	
 	'Log
-	Call WriteLogSucc("String XML created For " & strFacType, LogLevel)
+	Call WriteLogSucc("String XML created For " & strFacType, 2)
 	
 	'Creating the XML object with an array of the points
 	objPoints.AddPointsArray arrPoints, False
@@ -126,7 +126,7 @@ Function GetXMLCurrentValues(strSiteServ, strFacType)
 	objPoints.UpdateNow 2
 	
     GetXMLCurrentValues = objPoints.GetPointsXML(strXML)
-    Call WriteLogSucc("Successful Point Retrieval For " & strFacType, LogLevel)
+    Call WriteLogSucc("Successful Point Retrieval For " & strFacType, 2)
 End Function
 
 Function PrepareDictionary(strPntXML, strFacType)
@@ -139,7 +139,7 @@ Function PrepareDictionary(strPntXML, strFacType)
 	Dim strNodes : Set strNodes = objXML.documentElement.SelectSingleNode("//cygPtInfo/Points").childNodes
 	
 	'Log
-	Call WriteLogSucc("Ready to get attributes from the string XML.",LogLevel)
+	Call WriteLogSucc("Ready to get attributes from the string XML.", 2)
 	
 	'Variables For dictionary and child nodes || Must go thru the child nodes (they will be in a random order); so to go thru this list we must get the attributes from each child node
     Dim child, strValue, strCygTag, strFacTag, strUdc, strActiveStatus, strTimeStamp, strPointID
@@ -164,25 +164,25 @@ Function PrepareDictionary(strPntXML, strFacType)
 		'Add CygTag as the Key to the Dictionary; then add the Value as the dictionary's value
         If strActiveStatus = "1" Then
             dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "Good"
-			Call WriteLogInfo(strCygTag & " is good", LogLevel)
+			Call WriteLogInfo(strCygTag & " is good", 2)
 		ElseIf strActiveStatus = "0" Then
 			dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "Inactive"
-			Call WriteLogInfo(strCygTag & " is bad (inactive)", LogLevel)
+			Call WriteLogInfo(strCygTag & " is bad (inactive)", 2)
 		ElseIf strActiveStatus = "Null" AND strUDC = "VWY" Then 'Why did you make this distinction here?
 			If strValue <> "" Then 'Why did you make this distinction here?
                 dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "VWY/Null/Not Blank"
-                Call WriteLogInfo(strCygTag & " is bad (VWY/Null/Not Blank)", LogLevel)
+                Call WriteLogInfo(strCygTag & " is bad (VWY/Null/Not Blank)", 2)
 			ElseIf strValue = "" Then'Why did you make this distinction here?
                 dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "VWY/Null/Blank"
-                Call WriteLogInfo(strCygTag & " is bad (VWY/Null/Blank)", LogLevel)
+                Call WriteLogInfo(strCygTag & " is bad (VWY/Null/Blank)", 2)
             End If
 		Else 
 			dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "Other"
-			Call WriteLogInfo(strCygTag & " is bad (other)", LogLevel)
+			Call WriteLogInfo(strCygTag & " is bad (other)", 2)
 		End If
 	Next
     PrepareDictionary = dictionary
-    Call WriteLogSucc("Successful Dictionary Preparation For " & strFacType, LogLevel)
+    Call WriteLogSucc("Successful Dictionary Preparation For " & strFacType, 2)
 End Function
 
 Sub WriteToFile(D1)
@@ -202,7 +202,7 @@ Sub WriteToFile(D1)
             Set D3 = D2.Item(arrD2Keys(j)) 'D3 is the Point dictionary filled with point info
             If D3.Item("Quality") = "Good" Then
                 If CInt(D3.Item("Value")) >= 0 Then
-                    fileOut.Writeline "LIQUID METER," & D3.Item("Desc") & " Water" & "," & D3.Item("PointID")) & "," & TimeStampVal & "," & D3.Item("Value") & "," & BSandW
+                    fileOut.Writeline "LIQUID METER," & D3.Item("Desc") & " Water" & "," & D3.Item("PointID") & "," & TimeStampVal & "," & D3.Item("Value") & "," & BSandW
                 End If
             Else
                 badFile.Writeline arrD2Keys(j) & "|" & D3.Item("Quality")
@@ -210,7 +210,7 @@ Sub WriteToFile(D1)
         Next
 	Next
 	
-	Call WriteLogSucc("Facility Type finished getting values for " & D1.Item("Type"), LogLevel)
+	Call WriteLogSucc("Facility Type finished getting values for " & D1.Item("Type"), 2)
 End Sub
 
 Sub WriteLogSucc(str, level)
@@ -220,13 +220,13 @@ Sub WriteLogSucc(str, level)
 End Sub
 
 Sub WriteLogInfo(str, level)
-	If level => 1 Then 
+	If level => LogLevel Then 
 		logFile.Writeline now &" - "& str
 	End If 
 End Sub
 
 Sub LogHeader(level)
-	If level => 1 Then 
+	If level => LogLevel Then
 		logFile.Writeline now &" - Time Log Starts"
 		logFile.Writeline ""
 		logFile.Writeline "Begin log: "
@@ -380,16 +380,16 @@ Function FTPUpload(sSite, sUsername, sPassword, sLocalFile, sRemotePath)
 End Function
 
 Function Copy(source, destination, file)
-	Call WriteLogInfo("Copying files to remote location...",LogLevel)
+	Call WriteLogInfo("Copying files to remote location...", 2)
 	Dim WshShellScriptExec, WSHShell, strLogFile, strCmd
 	Set WSHShell = CreateObject("Wscript.Shell")
 	strLogFile = source & "\CopyProcess.Log"
 	strCmd = "robocopy """ & source & """ """ & destination & """ """ & file & """ /XO /NFL /NDL /NP /R:0 /W:1 /LOG+:""" & strLogFile &""""
 	
-	Call WriteLogInfo("Cmd: " & strCmd,LogLevel)
+	Call WriteLogInfo("Cmd: " & strCmd, 2)
 	WshShellScriptExec = WshShell.Run(strCmd, 0, True)
 	
-	Call WriteLogInfo("End of Copy. File copy status: " & WshShellScriptExec,LogLevel) 
+	Call WriteLogInfo("End of Copy. File copy status: " & WshShellScriptExec, 2) 
 End Function
 
 Function Archive(source, archivedFile)
