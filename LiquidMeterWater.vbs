@@ -20,7 +20,7 @@ Dim strStatusPointTag : strStatusPointTag = strSite & ".UIS:BATCH_STATUS_LIQWAT"
 '| 0 = No Log
 '| 1 = Important
 '| 2 = Everything
-Dim LogLevel : LogLevel = 2
+Dim intLogLevel : intLogLevel = 2
 
 'Now - Date get
 Dim strFileTS : strFileTS = Month(now()) &"-"& Day(now()) &"-"& Year(now()) & " " & Hour(now()) &"-"& Minute(now()) &"-"& Second(now())
@@ -34,7 +34,7 @@ Dim fileBad : Set fileBad = objFso.CreateTextFile("C:\CygNet\Scripts\Bad\LiquidM
 Dim objGlobFunc : Set objGlobFunc = CreateObject("CxScript.GlobalFunctions")
 
 'Log 
-Call LogHeader(LogLevel)
+Call LogHeader(intLogLevel)
 Call WriteLog("Successfully created all objects", 2)
 
 'Print the header of the ProdView 
@@ -57,8 +57,9 @@ objGlobFunc.setpoint strStatusPointTag, "In-Progress", now
 'Needs error checking and testing
 Dim arrFacTypes : arrFacTypes = Array("OIL_PAD", "OIL_WELLS", "SWD_WELLS")
 For i = 0 to UBound(arrFacTypes)
-    Call WriteToFile(PrepareDictionary(GetXMLCurrentValues(strSiteUIS, arrFacTypes(i)), arrFacTypes(i)))
-    Call WriteLog("Successfully processed " & arrFacTypes(i), 2)
+	Call WriteLog("Processing " & arrFacTypes(i), 2)
+	Call WriteToFile(PrepareDictionary(GetXMLCurrentValues(strSiteUIS, arrFacTypes(i)), arrFacTypes(i)))
+	Call WriteLog("Successfully processed " & arrFacTypes(i), 2)
 Next
 
 'FTP Copy over
@@ -76,7 +77,7 @@ If Err.number = 0 then
 	objGlobFunc.setpoint strStatusPointTag, "Complete", now
 ElseIf Err.number <> 0 then 
 	objGlobFunc.setpoint strStatusPointTag, "Complete w Errors", now
-end If
+End If
 
 '===============================
 '=== Functions & Subroutines ===
@@ -84,12 +85,12 @@ end If
 
 Function GetXMLCurrentValues(strSiteServ, strFacType)
 	Call WriteLog("Get XML Current values for " & strFacType, 2)
-    Dim objFac : Set objFac = CreateObject("CxScript.Facilities")
-    Dim objPoints : Set objPoints = CreateObject("CxScript.Points")	
-    Dim strXML, arrPoints(), i, j, strPointTag, arrTagList, strFacTag
+	Dim objFac : Set objFac = CreateObject("CxScript.Facilities")
+	Dim objPoints : Set objPoints = CreateObject("CxScript.Points")	
+	Dim strXML, arrPoints(), i, j, strPointTag, arrTagList, strFacTag
 
-    objFac.GetFacilityTagList strSiteServ, "facility_is_active=Y;facility_type=" & strFacType, arrTagList
-    Redim arrPoints(UBound(arrTagList) + 1)
+	objFac.GetFacilityTagList strSiteServ, "facility_is_active=Y;facility_type=" & strFacType, arrTagList
+	Redim arrPoints(UBound(arrTagList) + 1)
 
 	Call WriteLog(strFacType & "|" & UBound(arrTagList) + 1 & "facilities to process", 2)
 
@@ -101,35 +102,35 @@ Function GetXMLCurrentValues(strSiteServ, strFacType)
 			If strFacType = "OIL_WELLS" Then 'Could do a Switch here but this is fine too. Other options as well
 				strPointTag = Replace(strFacTag,"::",":") & "_VWY0"
 			ElseIf strFacType = "SWD_WELLS" Then
-                strPointTag = Replace(strFacTag,"::",":") & "_INJVOLPD"
-            ElseIf strFacType = "OIL_PAD" Then
-                strPointTag = Replace(strFacTag,"::",":") & "_VWY"
-            Else
-                Wscript.Echo "This should never be displayed. Ever. If so, something is wrong. Fix it."
-			end If 
-			strXML = strXML & "<node cygTag=" & chr(34) & strPointTag & chr(34) & " />"
-			arrPoints(i) = strPointTag
+				strPointTag = Replace(strFacTag,"::",":") & "_INJVOLPD"
+			ElseIf strFacType = "OIL_PAD" Then
+				strPointTag = Replace(strFacTag,"::",":") & "_VWY"
+			Else
+				Wscript.Echo "This should never be displayed. Ever. If so, something is wrong. Fix it."
+			End If 
+				strXML = strXML & "<node cygTag=" & chr(34) & strPointTag & chr(34) & " />"
+				arrPoints(i) = strPointTag
 		Next
 	Next
 	strXML = strXML & "</Points></cygPtInfo>"
-	
+
 	Call WriteLog("XML current values request created For " & strFacType, 2)
-	
+
 	objPoints.AddPointsArray arrPoints, False
 	objPoints.ResolveNow 2
 	objPoints.UpdateNow 2
-	
-    GetXMLCurrentValues = objPoints.GetPointsXML(strXML)
-    Call WriteLog("Finish get XML Current values for " & strFacType, 2)
+
+	GetXMLCurrentValues = objPoints.GetPointsXML(strXML)
+	Call WriteLog("Finish get XML Current values for " & strFacType, 2)
 End Function
 
 Function PrepareDictionary(strPntXML, strFacType)
 	Call WriteLog("Begin prepare dictionary for " & strFacType, 2)
 	Dim pntChild, strValue, strCygTag, strFacTag, strUdc, strActiveStatus, strTimeStamp, strPointID, strQuality
-    Dim dictionary : Set dictionary = CreateObject("Scripting.Dictionary")
-    Dim currPointObj : Set currPointObj = CreateObject("CxScript.Points")
-    Dim objXML : Set objXML = CreateObject("Msxml2.DOMDocument.6.0")
-	
+	Dim dictionary : Set dictionary = CreateObject("Scripting.Dictionary")
+	Dim currPointObj : Set currPointObj = CreateObject("CxScript.Points")
+	Dim objXML : Set objXML = CreateObject("Msxml2.DOMDocument.6.0")
+
 	objXML.async = False
 	objXML.LoadXML strPntXML
 	dictionary.Add "Type", strFacType
@@ -137,23 +138,23 @@ Function PrepareDictionary(strPntXML, strFacType)
 	'This makes arrNodes = all of the Points in the XML string from last Nested For Loop
 	Dim arrNodes : Set arrNodes = objXML.documentElement.SelectSingleNode("//cygPtInfo/Points").childNodes
 	Call WriteLog(strFacType & "|" & UBound(arrNodes) + 1 & " nodes to process", 2)   
-    
-    For Each pntChild in arrNodes
-        strValue = CheckValue(pntChild.getAttribute("Value"))
-        strCygTag = pntChild.getAttribute("cygTag")
-        strFacTag = GetFacTag(strCygTag)
-        strUdc = GetUDC(strCygTag)
-        strActiveStatus = pntChild.getAttribute("activestatus")
-        strPointID = currPointObj.Point(strFacTag & "." & strUdc).GetAttribute("pointid")
 
-        If NOT dictionary.Exists(strFacTag) Then dictionary.Add strFacTag, CreateObject("Scripting.Dictionary")
-        dictionary.Item(strFacTag).Add strCygTag, CreateObject("Scripting.Dictionary")
-        dictionary.Item(strFacTag).Item(strCygTag).Add "Desc", objFac.GetFacilityAttribute(strFacTag, "FACILITY_DESC")
-        dictionary.Item(strFacTag).Item(strCygTag).Add "Value", strValue
-        dictionary.Item(strFacTag).Item(strCygTag).Add "UDC", strUdc
-        dictionary.Item(strFacTag).Item(strCygTag).Add "PointID", TrimLZ(strPointID)
-            
-        If strActiveStatus = "1" Then
+	For Each pntChild in arrNodes
+		strValue = CheckValue(pntChild.getAttribute("Value"))
+		strCygTag = pntChild.getAttribute("cygTag")
+		strFacTag = GetFacTag(strCygTag)
+		strUdc = GetUDC(strCygTag)
+		strActiveStatus = pntChild.getAttribute("activestatus")
+		strPointID = currPointObj.Point(strFacTag & "." & strUdc).GetAttribute("pointid")
+
+		If NOT dictionary.Exists(strFacTag) Then dictionary.Add strFacTag, CreateObject("Scripting.Dictionary")
+		dictionary.Item(strFacTag).Add strCygTag, CreateObject("Scripting.Dictionary")
+		dictionary.Item(strFacTag).Item(strCygTag).Add "Desc", objFac.GetFacilityAttribute(strFacTag, "FACILITY_DESC")
+		dictionary.Item(strFacTag).Item(strCygTag).Add "Value", strValue
+		dictionary.Item(strFacTag).Item(strCygTag).Add "UDC", strUdc
+		dictionary.Item(strFacTag).Item(strCygTag).Add "PointID", TrimLZ(strPointID)
+
+		If strActiveStatus = "1" Then
 			If CInt(strValue) >= 0 Then
 				strQuality = "Good"
 			Else
@@ -163,19 +164,19 @@ Function PrepareDictionary(strPntXML, strFacType)
 			strQuality = "Inactive Status"
 		ElseIf strActiveStatus = "Null" AND strUDC = "VWY" Then
 			If strValue <> "" Then
-                strQuality = "UDC=VWY/Status=Null/Value=Not Blank"
+				strQuality = "UDC=VWY/Status=Null/Value=Not Blank"
 			ElseIf strValue = "" Then
-                strQuality = "UDC=VWY/Status=Null/Value=Blank"
-            End If
+				strQuality = "UDC=VWY/Status=Null/Value=Blank"
+			End If
 		Else
 			strQuality = "Other"
 		End If
-		
+
 		Call WriteLog(strCygTag & " is " & strQuality, 2)
 		dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", strQuality
 	Next
-    PrepareDictionary = dictionary
-    Call WriteLog("Finish prepare dictionary for " & strFacType, 2)
+	PrepareDictionary = dictionary
+	Call WriteLog("Finish prepare dictionary for " & strFacType, 2)
 End Function
 
 Sub WriteToFile(D1)
@@ -183,7 +184,7 @@ Sub WriteToFile(D1)
 	Dim i, j, arrD1Keys, arrD2Keys, strTimeStamp, intBSandW, D2, D3
 	strTimeStamp = CheckTimeStamp(Date() - 1)
 	intBSandW = 100
-	
+
 	'Now we print out our Dictionary | Log
 	arrD1Keys = D1.Keys 'D1 is Top level dictionary with FacIDs as keys    
 	Call WriteLog(strFacType & "|" & UBound(arrD1Keys) + 1 & "facilities in dictionary to process", 2)
@@ -201,18 +202,18 @@ Sub WriteToFile(D1)
 			End If
 		Next
 	Next
-	
+
 	Call WriteLog("Finish write file for " & D1.Item("Type"), 2)
 End Sub
 
 Sub WriteLog(str, level)
-	If level => LogLevel Then 
+	If level => intLogLevel Then 
 		fileLog.Writeline now & " - "& str
 	End If 
 End Sub
 
 Sub LogHeader(level)
-	If level => LogLevel Then
+	If level => intLogLevel Then
 		fileLog.Writeline "LiquidMeterWater.vbs - Start"
 		fileLog.Writeline now
 		fileLog.Writeline "Begin log: "
@@ -223,12 +224,12 @@ Function CheckValue(strPointTag, strValue)
 	If NOT IsNull(strValue) Then
 		If Len(strValue) > 0 Then
 			On Error Resume Next
-				CheckValue = CInt(Replace(strValue," ",""))
-                If Err.Number > 0 Then
-                    CheckValue = -9999
-					Call WriteLog(strPointTag & "|" Err.Description, 2)
-					Err.clear
-				End If
+			CheckValue = CInt(Replace(strValue," ",""))
+			If Err.Number > 0 Then
+				CheckValue = -9999
+				Call WriteLog(strPointTag & "|" Err.Description, 2)
+				Err.clear
+			End If
 			On Error Goto 0
 		Else
 			CheckValue = -9999
@@ -253,11 +254,9 @@ Function CheckTimeStamp(TimeStamp)
 		day = DatePart("d", TimeStamp)
 		If month < 10 Then month = "0" & month
 		If day < 10 Then day = "0" & day
-		
 		CheckTimeStamp = Year(TimeStamp) & month & day
 	ElseIf IsNull(TimeStamp) Then
 		CheckTimeStamp = ""
-		
 	End If 
 End Function
 
@@ -272,17 +271,17 @@ Function FTPUpload(sSite, sUsername, sPassword, sLocalFile, sRemotePath)
 
 	sRemotePath = Trim(sRemotePath)
 	sLocalFile = Trim(sLocalFile)
-	  
-	  '----------Path Checks---------
-	  'Here we willcheck the path, If it contains
-	  'spaces then we need to add quotes to ensure
-	  'it parses correctly.
+
+	'----------Path Checks---------
+	'Here we willcheck the path, If it contains
+	'spaces then we need to add quotes to ensure
+	'it parses correctly.
 	If InStr(sRemotePath, " ") > 0 Then
 		If Left(sRemotePath, 1) <> """" And Right(sRemotePath, 1) <> """" Then
 			sRemotePath = chr(34) & sRemotePath & chr(34)
 		End If
 	End If
-	  
+
 	If InStr(sLocalFile, " ") > 0 Then
 		If Left(sLocalFile, 1) <> """" And Right(sLocalFile, 1) <> """" Then
 			sLocalFile = chr(34) & sLocalFile & chr(34)
@@ -292,12 +291,12 @@ Function FTPUpload(sSite, sUsername, sPassword, sLocalFile, sRemotePath)
 	'Check to ensure that a remote path was
 	'passed. If it's blank then pass a "\"
 	If Len(sRemotePath) = 0 Then
-	'Please note that no premptive checking of the
-	'remote path is done. If it does not exist For some
-	'reason. Unexpected results may occur.
+		'Please note that no premptive checking of the
+		'remote path is done. If it does not exist For some
+		'reason. Unexpected results may occur.
 		sRemotePath = "\"
 	End If
-	
+
 	'Check the local path and file to ensure
 	'that either the a file that exists was
 	'passed or a wildcard was passed.
@@ -308,13 +307,13 @@ Function FTPUpload(sSite, sUsername, sPassword, sLocalFile, sRemotePath)
 			Exit Function
 		End If
 	ElseIf Len(sLocalFile) = 0 OR NOT oFTPScriptFSO.FileExists(sLocalFile) Then
-	'nothing to upload
+		'nothing to upload
 		FTPUpload = "Error: File Not Found."
 		Exit Function
 	End If
-	'--------END Path Checks---------
-	  
-	  'build input file For ftp command
+	'--------End Path Checks---------
+
+	'build input file For ftp command
 	sFTPScript = sFTPScript & "USER " & sUsername & vbCRLF
 	sFTPScript = sFTPScript & sPassword & vbCRLF
 	sFTPScript = sFTPScript & "cd " & sRemotePath & vbCRLF
@@ -322,31 +321,31 @@ Function FTPUpload(sSite, sUsername, sPassword, sLocalFile, sRemotePath)
 	sFTPScript = sFTPScript & "prompt n" & vbCRLF
 	sFTPScript = sFTPScript & "put " & sLocalFile & vbCRLF
 	sFTPScript = sFTPScript & "quit" & vbCRLF & "quit" & vbCRLF & "quit" & vbCRLF
-	
+
 	sFTPTemp = oFTPScriptShell.ExpandEnvironmentStrings("%TEMP%")
 	sFTPTempFile = sFTPTemp & "\" & oFTPScriptFSO.GetTempName
 	sFTPResults = sFTPTemp & "\" & oFTPScriptFSO.GetTempName
-	
+
 	'Write the input file For the ftp command
 	'to a temporary file.
 	Set fFTPScript = oFTPScriptFSO.CreateTextFile(sFTPTempFile, True)
 	fFTPScript.WriteLine(sFTPScript)
-	
+
 	fFTPScript.Close
 	Set fFTPScript = Nothing  
-	
+
 	oFTPScriptShell.Run "%comspec% /c FTP -n -s:" & sFTPTempFile & " " & sSite & " > " & sFTPResults, 0, TRUE
-	
+
 	Wscript.Sleep 1000
-	
+
 	'Check results of transfer.
 	Set fFTPResults = oFTPScriptFSO.OpenTextFile(sFTPResults, ForRading, FailIfNotExist, OpenAsDefault)
 	sResults = fFTPResults.ReadAll
 	fFTPResults.Close
-	
+
 	oFTPScriptFSO.DeleteFile(sFTPTempFile)
 	oFTPScriptFSO.DeleteFile (sFTPResults)
-	
+
 	If InStr(sResults, "226 Successfully transferred") > 0 Then
 		FTPUpload = True
 	ElseIf InStr(sResults, "File not found") > 0 Then
@@ -369,14 +368,14 @@ Function Copy(source, destination, file)
 	Set WSHShell = CreateObject("Wscript.Shell")
 	strfileLog = source & "\CopyProcess.Log"
 	strCmd = "robocopy """ & source & """ """ & destination & """ """ & file & """ /XO /NFL /NDL /NP /R:0 /W:1 /LOG+:""" & strfileLog &""""
-	
+
 	Call WriteLog("Cmd: " & strCmd, 2)
 	WshShellScriptExec = WshShell.Run(strCmd, 0, True)
-	
-	Call WriteLog("End of Copy. File copy status: " & WshShellScriptExec, 2) 
-End Function
 
-Function Archive(source, archivedFile)
+	Call WriteLog("End of Copy. File copy status: " & WshShellScriptExec, 2) 
+	End Function
+
+	Function Archive(source, archivedFile)
 	Dim myFSO : Set myFSO = CreateObject("Scripting.FileSystemObject")
 	myFSO.MoveFile source, archivedFile 
 End Function
