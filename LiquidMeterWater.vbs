@@ -34,7 +34,7 @@ Dim objGlobFunc : Set objGlobFunc = CreateObject("CxScript.GlobalFunctions")
 
 'Log 
 Call LogHeader(LogLevel)
-Call WriteLogSucc("Successfully created all objects", 2)
+Call WriteLog("Successfully created all objects", 2)
 
 'Print the header of the ProdView 
 fileOut.Writeline "prodview scada import"
@@ -57,7 +57,7 @@ objGlobFunc.setpoint strStatusPointTag, "In-Progress", now
 Dim arrFacTypes : arrFacTypes = Array("OIL_PAD", "OIL_WELLS", "SWD_WELLS")
 For i = 0 to UBound(arrFacTypes)
     Call WriteToFile(PrepareDictionary(GetXMLCurrentValues(strSiteUIS, arrFacTypes(i)), arrFacTypes(i)))
-    Call WriteLogSucc("Successfully processed " & arrFacTypes(i), 2)
+    Call WriteLog("Successfully processed " & arrFacTypes(i), 2)
 Next
 
 'FTP Copy over
@@ -71,9 +71,9 @@ Call Archive("C:\CygNet\Scripts\TempGood\LiquidMeterWater " & NowDateGet & ".csv
 Call Archive("C:\CygNet\Scripts\TempLog\LiquidMeterWaterLog.txt", "C:\CygNet\Scripts\Archive\LiquidMeterWaterLog " & NowDateGet & ".txt")
 
 'Status report
-If err.number = 0 then 
+If Err.number = 0 then 
 	objGlobFunc.setpoint strStatusPointTag, "Complete", now
-ElseIf err.number <> 0 then 
+ElseIf Err.number <> 0 then 
 	objGlobFunc.setpoint strStatusPointTag, "Complete w Errors", now
 end If
 
@@ -82,6 +82,7 @@ end If
 '===============================
 
 Function GetXMLCurrentValues(strSiteServ, strFacType)
+	Call WriteLog("Get XML Current values for " & strFacType, 2)
     'The input is an entire TagList from the GetFacilityTagList function
     Dim objFac : Set objFac = CreateObject("CxScript.Facilities")
     Dim objPoints : Set objPoints = CreateObject("CxScript.Points")	
@@ -91,8 +92,8 @@ Function GetXMLCurrentValues(strSiteServ, strFacType)
     Redim arrPoints(UBound(arrTagList) + 1)
 
 	'Log
-	Call WriteLogInfo(strFacType & "|Getting " & UBound(arrTagList) + 1 & " data points from " & UBound(arrTagList) + 1 & "facilities", 2)
-	
+	Call WriteLog(strFacType & "|" & UBound(arrTagList) + 1 & "facilities to process", 2)
+
 	'Loop to create a long XML string
 	strXML = "<cygPtInfo><Parameters><Value /><timestamp /><activestatus /></Parameters><Points>"
 	For i = 0 to UBound(arrTagList)
@@ -106,7 +107,7 @@ Function GetXMLCurrentValues(strSiteServ, strFacType)
             ElseIf strFacType = "OIL_PAD" Then
                 strPointTag = Replace(strFacTag,"::",":") & "_VWY"
             Else
-                Wscript.Echo "This should never be displayed. Ever. If so, something is wrong. 04/24/20."
+                Wscript.Echo "This should never be displayed. Ever. If so, something is wrong. Fix it."
 			end If 
 			strXML = strXML & "<node cygTag=" & chr(34) & strPointTag & chr(34) & " />"
 			arrPoints(i) = strPointTag
@@ -115,7 +116,7 @@ Function GetXMLCurrentValues(strSiteServ, strFacType)
 	strXML = strXML & "</Points></cygPtInfo>"
 	
 	'Log
-	Call WriteLogSucc("String XML created For " & strFacType, 2)
+	Call WriteLog("XML current values request created For " & strFacType, 2)
 	
 	'Creating the XML object with an array of the points
 	objPoints.AddPointsArray arrPoints, False
@@ -123,10 +124,12 @@ Function GetXMLCurrentValues(strSiteServ, strFacType)
 	objPoints.UpdateNow 2
 	
     GetXMLCurrentValues = objPoints.GetPointsXML(strXML)
-    Call WriteLogSucc("Successful Point Retrieval For " & strFacType, 2)
+    Call WriteLog("Finish get XML Current values for " & strFacType, 2)
 End Function
 
 Function PrepareDictionary(strPntXML, strFacType)
+	Call WriteLog("Begin prepare dictionary for " & strFacType, 2)
+
     Dim currPointObj : Set currPointObj = CreateObject("CxScript.Points")
     Dim objXML : Set objXML = CreateObject("Msxml2.DOMDocument.6.0")
 	objXML.async = False
@@ -134,10 +137,8 @@ Function PrepareDictionary(strPntXML, strFacType)
 	
 	'This makes strNodes = all of the Points in the XML string from last Nested For Loop
 	Dim strNodes : Set strNodes = objXML.documentElement.SelectSingleNode("//cygPtInfo/Points").childNodes
-	
-	'Log
-	Call WriteLogSucc("Ready to get attributes from the string XML.", 2)
-	
+	Call WriteLog(strFacType & "|" & UBound(strNodes) + 1 & " nodes to process", 2)
+
 	'Variables For dictionary and child nodes || Must go thru the child nodes (they will be in a random order); so to go thru this list we must get the attributes from each child node
     Dim child, strValue, strCygTag, strFacTag, strUdc, strActiveStatus, strTimeStamp, strPointID
     Dim dictionary : Set dictionary = CreateObject("Scripting.Dictionary")
@@ -149,7 +150,7 @@ Function PrepareDictionary(strPntXML, strFacType)
         strFacTag = GetFacTag(strCygTag)
         strUdc = GetUDC(strCygTag)
         strActiveStatus = child.getAttribute("activestatus")
-        strPointID = currPointObj.Point(strFacTag &"."& strUdc).GetAttribute("pointid")
+        strPointID = currPointObj.Point(strFacTag & "." & strUdc).GetAttribute("pointid")
 
         If NOT dictionary.Exists(strFacTag) Then dictionary.Add strFacTag, CreateObject("Scripting.Dictionary")
         dictionary.Item(strFacTag).Add strCygTag, CreateObject("Scripting.Dictionary")
@@ -161,34 +162,36 @@ Function PrepareDictionary(strPntXML, strFacType)
 		'Add CygTag as the Key to the Dictionary; then add the Value as the dictionary's value
         If strActiveStatus = "1" Then
             dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "Good"
-			Call WriteLogInfo(strCygTag & " is good", 2)
+			Call WriteLog(strCygTag & " is good", 2)
 		ElseIf strActiveStatus = "0" Then
 			dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "Inactive"
-			Call WriteLogInfo(strCygTag & " is bad (inactive)", 2)
+			Call WriteLog(strCygTag & " is bad (inactive)", 2)
 		ElseIf strActiveStatus = "Null" AND strUDC = "VWY" Then 'Why did you make this distinction here?
 			If strValue <> "" Then 'Why did you make this distinction here?
                 dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "VWY/Null/Not Blank"
-                Call WriteLogInfo(strCygTag & " is bad (VWY/Null/Not Blank)", 2)
+                Call WriteLog(strCygTag & " is bad (VWY/Null/Not Blank)", 2)
 			ElseIf strValue = "" Then'Why did you make this distinction here?
                 dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "VWY/Null/Blank"
-                Call WriteLogInfo(strCygTag & " is bad (VWY/Null/Blank)", 2)
+                Call WriteLog(strCygTag & " is bad (VWY/Null/Blank)", 2)
             End If
-		Else 
+		Else 'Why not just else?
 			dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "Other"
-			Call WriteLogInfo(strCygTag & " is bad (other)", 2)
+			Call WriteLog(strCygTag & " is bad (other)", 2)
 		End If
 	Next
     PrepareDictionary = dictionary
-    Call WriteLogSucc("Successful Dictionary Preparation For " & strFacType, 2)
+    Call WriteLog("Finish prepare dictionary for " & strFacType, 2)
 End Function
 
 Sub WriteToFile(D1)
+	Call WriteLog("Begin write file for " & D1.Item("Type"), 2)
 	Dim i, j, arrD1Keys, arrD2Keys, TimeStampVal, BSandW, D2, D3
 	TimeStampVal = CheckTimeStamp(Date() - 1)
 	BSandW = 100
 	
 	'Now we print out our Dictionary | Log
 	arrD1Keys = D1.Keys 'D1 is Top level dictionary with FacIDs as keys    
+	Call WriteLog(strFacType & "|" & UBound(arrD1Keys) + 1 & "facilities in dictionary to process", 2)
 
 	For i = 0 to UBound(arrD1Keys) 
 		Set D2 = D1.Item(arrD1Keys(i)) 'D2 is the Facility dictionary with PointTags as keys
@@ -207,37 +210,31 @@ Sub WriteToFile(D1)
 		Next
 	Next
 	
-	Call WriteLogSucc("Facility Type finished getting values for " & D1.Item("Type"), 2)
+	Call WriteLog("Finish write file for " & D1.Item("Type"), 2)
 End Sub
 
-Sub WriteLogSucc(str, level)
+Sub WriteLog(str, level)
 	If level => LogLevel Then 
-		fileLog.Writeline now &" - "& str
-	End If 
-End Sub
-
-Sub WriteLogInfo(str, level)
-	If level => LogLevel Then 
-		fileLog.Writeline now &" - "& str
+		fileLog.Writeline now & " - "& str
 	End If 
 End Sub
 
 Sub LogHeader(level)
 	If level => LogLevel Then
-		fileLog.Writeline now &" - Time Log Starts"
-		fileLog.Writeline ""
+		fileLog.Writeline "LiquidMeterWare.vbs - Start"
+		fileLog.Writeline now
 		fileLog.Writeline "Begin log: "
 	End If 
 End Sub
 
-Function CheckValue(value)
-	If not IsNull(value) Then
-		If Len(value) > 0 Then
+Function CheckValue(strPointTag, strValue)
+	If NOT IsNull(strValue) Then
+		If Len(strValue) > 0 Then
 			On Error Resume Next
-				CheckValue = CInt(Replace(value," ",""))
-                If err.Number > 0 Then
+				CheckValue = CInt(Replace(strValue," ",""))
+                If Err.Number > 0 Then
                     CheckValue = -9999
-					Wscript.Echo Err.Description 'Maybe write this to log as well
+					Call WriteLog(strPointTag & "|" Err.Description, 2)
 					Err.clear
 				End If
 			On Error Goto 0
@@ -259,7 +256,7 @@ End Function
 
 Function CheckTimeStamp(TimeStamp)
 	Dim day, month
-	If not IsNull(TimeStamp) Then
+	If NOT IsNull(TimeStamp) Then
 		month = DatePart("m", TimeStamp)
 		day = DatePart("d", TimeStamp)
 		If month < 10 Then month = "0" & month
@@ -318,7 +315,7 @@ Function FTPUpload(sSite, sUsername, sPassword, sLocalFile, sRemotePath)
 			FTPUpload = FTPUpload & "This is a limitation of the Microsoft FTP client."
 			Exit Function
 		End If
-	ElseIf Len(sLocalFile) = 0 Or Not oFTPScriptFSO.FileExists(sLocalFile) Then
+	ElseIf Len(sLocalFile) = 0 OR NOT oFTPScriptFSO.FileExists(sLocalFile) Then
 	'nothing to upload
 		FTPUpload = "Error: File Not Found."
 		Exit Function
@@ -375,16 +372,16 @@ Function FTPUpload(sSite, sUsername, sPassword, sLocalFile, sRemotePath)
 End Function
 
 Function Copy(source, destination, file)
-	Call WriteLogInfo("Copying files to remote location...", 2)
+	Call WriteLog("Copying files to remote location...", 2)
 	Dim WshShellScriptExec, WSHShell, strfileLog, strCmd
 	Set WSHShell = CreateObject("Wscript.Shell")
 	strfileLog = source & "\CopyProcess.Log"
 	strCmd = "robocopy """ & source & """ """ & destination & """ """ & file & """ /XO /NFL /NDL /NP /R:0 /W:1 /LOG+:""" & strfileLog &""""
 	
-	Call WriteLogInfo("Cmd: " & strCmd, 2)
+	Call WriteLog("Cmd: " & strCmd, 2)
 	WshShellScriptExec = WshShell.Run(strCmd, 0, True)
 	
-	Call WriteLogInfo("End of Copy. File copy status: " & WshShellScriptExec, 2) 
+	Call WriteLog("End of Copy. File copy status: " & WshShellScriptExec, 2) 
 End Function
 
 Function Archive(source, archivedFile)
