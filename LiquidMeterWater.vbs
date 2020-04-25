@@ -144,16 +144,16 @@ Function PrepareDictionary(strPntXML, strFacType)
     dictionary.Add "Type", strFacType
 
     For Each child in strNodes
-		strValue = CheckValue(child.getAttribute("Value"))
-		strCygTag = child.getAttribute("cygTag")
-		strFacTag = GetFacTag(strCygTag)
-		strUdc = GetUDC(strCygTag)
+        strValue = CheckValue(child.getAttribute("Value"))
+        strCygTag = child.getAttribute("cygTag")
+        strFacTag = GetFacTag(strCygTag)
+        strUdc = GetUDC(strCygTag)
         strActiveStatus = child.getAttribute("activestatus")
         strPointID = currPointObj.Point(strFacTag &"."& strUdc).GetAttribute("pointid")
 
         If NOT dictionary.Exists(strFacTag) Then dictionary.Add strFacTag, CreateObject("Scripting.Dictionary")
         dictionary.Item(strFacTag).Add strCygTag, CreateObject("Scripting.Dictionary")
-		dictionary.Item(strFacTag).Item(strCygTag).Add "Desc", objFac.GetFacilityAttribute(strFacTag, "FACILITY_DESC")
+        dictionary.Item(strFacTag).Item(strCygTag).Add "Desc", objFac.GetFacilityAttribute(strFacTag, "FACILITY_DESC")
         dictionary.Item(strFacTag).Item(strCygTag).Add "Value", strValue
         dictionary.Item(strFacTag).Item(strCygTag).Add "UDC", strUdc
         dictionary.Item(strFacTag).Item(strCygTag).Add "PointID", TrimLZ(strPointID)
