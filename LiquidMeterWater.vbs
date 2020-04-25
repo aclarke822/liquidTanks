@@ -183,8 +183,7 @@ Function PrepareDictionary(strPntXML, strFacType)
 End Function
 
 Sub WriteToFile(D1)
-	'Variables 
-	Dim i, j, k, arrD1Keys, TimeStampVal, BSandW, D2, D3
+	Dim i, j, arrD1Keys, arrD2Keys, TimeStampVal, BSandW, D2, D3
 	TimeStampVal = CheckTimeStamp(Date() - 1)
 	BSandW = 100
 	
