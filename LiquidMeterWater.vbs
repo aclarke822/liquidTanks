@@ -8,7 +8,8 @@ Option Explicit
 
 'Liquid Meter - Water Meters
 'Facility Types: OIL_PAD , OIL_WELLS, SWD_WELLS
-
+'In testing, test with On Error Resume Next off
+'In production, it's good to have On Error Resume Next on to make sure all processes and files close out instead of accumulating
 'On Error Resume Next
 Dim strSite : strSite = "FRANK"
 Dim strSiteUIS : strSiteUIS = strSite & ".UIS" 
@@ -22,12 +23,12 @@ Dim strStatusPointTag : strStatusPointTag = strSite & ".UIS:BATCH_STATUS_LIQWAT"
 Dim LogLevel : LogLevel = 2
 
 'Now - Date get
-Dim NowDateGet : NowDateGet = Month(now()) &"-"& Day(now()) &"-"& Year(now()) & " " & Hour(now()) &"-"& Minute(now()) &"-"& Second(now())
+Dim strFileTS : strFileTS = Month(now()) &"-"& Day(now()) &"-"& Year(now()) & " " & Hour(now()) &"-"& Minute(now()) &"-"& Second(now())
 
 'Making Objects
 Dim objFso : Set objFso = CreateObject("Scripting.FileSystemObject")
 Dim PntClient : Set PntClient = CreateObject("CxPnt.PntClient")
-Dim fileOut : Set fileOut = objFso.CreateTextFile("C:\CygNet\Scripts\TempGood\LiquidMeterWater " & NowDateGet & ".csv")
+Dim fileGood : Set fileGood = objFso.CreateTextFile("C:\CygNet\Scripts\TempGood\LiquidMeterWater " & strFileTS & ".csv")
 Dim fileLog : Set fileLog = objFso.CreateTextFile("C:\CygNet\Scripts\TempLog\LiquidMeterWaterLog.txt")
 Dim fileBad : Set fileBad = objFso.CreateTextFile("C:\CygNet\Scripts\Bad\LiquidMeterWaterBad.txt")
 Dim objGlobFunc : Set objGlobFunc = CreateObject("CxScript.GlobalFunctions")
@@ -37,9 +38,9 @@ Call LogHeader(LogLevel)
 Call WriteLog("Successfully created all objects", 2)
 
 'Print the header of the ProdView 
-fileOut.Writeline "prodview scada import"
-fileOut.Writeline "1.0"
-fileOut.Writeline "imperial"
+fileGood.Writeline "prodview scada import"
+fileGood.Writeline "1.0"
+fileGood.Writeline "imperial"
 
 fileBad.Writeline "Facility ID & Tank Description | Reason For Failure"  
 fileBad.Writeline "---------------------------------------------------"
@@ -61,14 +62,14 @@ For i = 0 to UBound(arrFacTypes)
 Next
 
 'FTP Copy over
-Call Copy("C:\CygNet\Scripts\TempGood", "\\wstr.com\ftp\CYGNET\PRD", "LiquidMeterWater " & NowDateGet & ".csv")
-fileOut.close
+Call Copy("C:\CygNet\Scripts\TempGood", "\\wstr.com\ftp\CYGNET\PRD", "LiquidMeterWater " & strFileTS & ".csv")
+fileGood.close
 fileLog.close
 fileBad.close
 
 'Archive 
-Call Archive("C:\CygNet\Scripts\TempGood\LiquidMeterWater " & NowDateGet & ".csv", "C:\CygNet\Scripts\Archive\LiquidMeterWater " & NowDateGet & ".csv")
-Call Archive("C:\CygNet\Scripts\TempLog\LiquidMeterWaterLog.txt", "C:\CygNet\Scripts\Archive\LiquidMeterWaterLog " & NowDateGet & ".txt")
+Call Archive("C:\CygNet\Scripts\TempGood\LiquidMeterWater " & strFileTS & ".csv", "C:\CygNet\Scripts\Archive\LiquidMeterWater " & strFileTS & ".csv")
+Call Archive("C:\CygNet\Scripts\TempLog\LiquidMeterWaterLog.txt", "C:\CygNet\Scripts\Archive\LiquidMeterWaterLog " & strFileTS & ".txt")
 
 'Status report
 If Err.number = 0 then 
@@ -83,7 +84,6 @@ end If
 
 Function GetXMLCurrentValues(strSiteServ, strFacType)
 	Call WriteLog("Get XML Current values for " & strFacType, 2)
-    'The input is an entire TagList from the GetFacilityTagList function
     Dim objFac : Set objFac = CreateObject("CxScript.Facilities")
     Dim objPoints : Set objPoints = CreateObject("CxScript.Points")	
     Dim strXML, arrPoints(), i, j, strPointTag, arrTagList, strFacTag
@@ -91,10 +91,8 @@ Function GetXMLCurrentValues(strSiteServ, strFacType)
     objFac.GetFacilityTagList strSiteServ, "facility_is_active=Y;facility_type=" & strFacType, arrTagList
     Redim arrPoints(UBound(arrTagList) + 1)
 
-	'Log
 	Call WriteLog(strFacType & "|" & UBound(arrTagList) + 1 & "facilities to process", 2)
 
-	'Loop to create a long XML string
 	strXML = "<cygPtInfo><Parameters><Value /><timestamp /><activestatus /></Parameters><Points>"
 	For i = 0 to UBound(arrTagList)
 		strFacTag = arrTagList(i)
@@ -115,10 +113,8 @@ Function GetXMLCurrentValues(strSiteServ, strFacType)
 	Next
 	strXML = strXML & "</Points></cygPtInfo>"
 	
-	'Log
 	Call WriteLog("XML current values request created For " & strFacType, 2)
 	
-	'Creating the XML object with an array of the points
 	objPoints.AddPointsArray arrPoints, False
 	objPoints.ResolveNow 2
 	objPoints.UpdateNow 2
@@ -129,27 +125,25 @@ End Function
 
 Function PrepareDictionary(strPntXML, strFacType)
 	Call WriteLog("Begin prepare dictionary for " & strFacType, 2)
-
+	Dim pntChild, strValue, strCygTag, strFacTag, strUdc, strActiveStatus, strTimeStamp, strPointID, strQuality
+    Dim dictionary : Set dictionary = CreateObject("Scripting.Dictionary")
     Dim currPointObj : Set currPointObj = CreateObject("CxScript.Points")
     Dim objXML : Set objXML = CreateObject("Msxml2.DOMDocument.6.0")
+	
 	objXML.async = False
 	objXML.LoadXML strPntXML
-	
-	'This makes strNodes = all of the Points in the XML string from last Nested For Loop
-	Dim strNodes : Set strNodes = objXML.documentElement.SelectSingleNode("//cygPtInfo/Points").childNodes
-	Call WriteLog(strFacType & "|" & UBound(strNodes) + 1 & " nodes to process", 2)
+	dictionary.Add "Type", strFacType
 
-	'Variables For dictionary and child nodes || Must go thru the child nodes (they will be in a random order); so to go thru this list we must get the attributes from each child node
-    Dim child, strValue, strCygTag, strFacTag, strUdc, strActiveStatus, strTimeStamp, strPointID
-    Dim dictionary : Set dictionary = CreateObject("Scripting.Dictionary")
-    dictionary.Add "Type", strFacType
-
-    For Each child in strNodes
-        strValue = CheckValue(child.getAttribute("Value"))
-        strCygTag = child.getAttribute("cygTag")
+	'This makes arrNodes = all of the Points in the XML string from last Nested For Loop
+	Dim arrNodes : Set arrNodes = objXML.documentElement.SelectSingleNode("//cygPtInfo/Points").childNodes
+	Call WriteLog(strFacType & "|" & UBound(arrNodes) + 1 & " nodes to process", 2)   
+    
+    For Each pntChild in arrNodes
+        strValue = CheckValue(pntChild.getAttribute("Value"))
+        strCygTag = pntChild.getAttribute("cygTag")
         strFacTag = GetFacTag(strCygTag)
         strUdc = GetUDC(strCygTag)
-        strActiveStatus = child.getAttribute("activestatus")
+        strActiveStatus = pntChild.getAttribute("activestatus")
         strPointID = currPointObj.Point(strFacTag & "." & strUdc).GetAttribute("pointid")
 
         If NOT dictionary.Exists(strFacTag) Then dictionary.Add strFacTag, CreateObject("Scripting.Dictionary")
@@ -159,25 +153,26 @@ Function PrepareDictionary(strPntXML, strFacType)
         dictionary.Item(strFacTag).Item(strCygTag).Add "UDC", strUdc
         dictionary.Item(strFacTag).Item(strCygTag).Add "PointID", TrimLZ(strPointID)
             
-		'Add CygTag as the Key to the Dictionary; then add the Value as the dictionary's value
         If strActiveStatus = "1" Then
-            dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "Good"
-			Call WriteLog(strCygTag & " is good", 2)
+			If CInt(strValue) >= 0 Then
+				strQuality = "Good"
+			Else
+				strQuality = "Status=Active/Value=(Negative OR Null OR Error Occurred in CheckValue)"
+			End If
 		ElseIf strActiveStatus = "0" Then
-			dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "Inactive"
-			Call WriteLog(strCygTag & " is bad (inactive)", 2)
-		ElseIf strActiveStatus = "Null" AND strUDC = "VWY" Then 'Why did you make this distinction here?
-			If strValue <> "" Then 'Why did you make this distinction here?
-                dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "VWY/Null/Not Blank"
-                Call WriteLog(strCygTag & " is bad (VWY/Null/Not Blank)", 2)
-			ElseIf strValue = "" Then'Why did you make this distinction here?
-                dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "VWY/Null/Blank"
-                Call WriteLog(strCygTag & " is bad (VWY/Null/Blank)", 2)
+			strQuality = "Inactive Status"
+		ElseIf strActiveStatus = "Null" AND strUDC = "VWY" Then
+			If strValue <> "" Then
+                strQuality = "UDC=VWY/Status=Null/Value=Not Blank"
+			ElseIf strValue = "" Then
+                strQuality = "UDC=VWY/Status=Null/Value=Blank"
             End If
-		Else 'Why not just else?
-			dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", "Other"
-			Call WriteLog(strCygTag & " is bad (other)", 2)
+		Else
+			strQuality = "Other"
 		End If
+		
+		Call WriteLog(strCygTag & " is " & strQuality, 2)
+		dictionary.Item(strFacTag).Item(strCygTag).Add "Quality", strQuality
 	Next
     PrepareDictionary = dictionary
     Call WriteLog("Finish prepare dictionary for " & strFacType, 2)
@@ -185,9 +180,9 @@ End Function
 
 Sub WriteToFile(D1)
 	Call WriteLog("Begin write file for " & D1.Item("Type"), 2)
-	Dim i, j, arrD1Keys, arrD2Keys, TimeStampVal, BSandW, D2, D3
-	TimeStampVal = CheckTimeStamp(Date() - 1)
-	BSandW = 100
+	Dim i, j, arrD1Keys, arrD2Keys, strTimeStamp, intBSandW, D2, D3
+	strTimeStamp = CheckTimeStamp(Date() - 1)
+	intBSandW = 100
 	
 	'Now we print out our Dictionary | Log
 	arrD1Keys = D1.Keys 'D1 is Top level dictionary with FacIDs as keys    
@@ -199,11 +194,8 @@ Sub WriteToFile(D1)
 		For j = 0 to UBound(arrD2Keys)
 			Set D3 = D2.Item(arrD2Keys(j)) 'D3 is the Point dictionary filled with point info
 			If D3.Item("Quality") = "Good" Then
-				If CInt(D3.Item("Value")) >= 0 Then
-					fileOut.Writeline "LIQUID METER," & D3.Item("Desc") & " Water" & "," & D3.Item("PointID") & "," & TimeStampVal & "," & D3.Item("Value") & "," & BSandW
-				Else
-					fileBad.Writeline arrD2Keys(j) & "|Quality good but value negative|Value:" & D3.Item("Value")
-				End If
+				fileGood.Writeline "LIQUID METER," & D3.Item("Desc") & " Water" & "," &_
+				D3.Item("PointID") & "," & strTimeStamp & "," & D3.Item("Value") & "," & intBSandW
 			Else
 				fileBad.Writeline arrD2Keys(j) & "|" & D3.Item("Quality")
 			End If
@@ -221,7 +213,7 @@ End Sub
 
 Sub LogHeader(level)
 	If level => LogLevel Then
-		fileLog.Writeline "LiquidMeterWare.vbs - Start"
+		fileLog.Writeline "LiquidMeterWater.vbs - Start"
 		fileLog.Writeline now
 		fileLog.Writeline "Begin log: "
 	End If 
