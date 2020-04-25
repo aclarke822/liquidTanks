@@ -190,19 +190,21 @@ Sub WriteToFile(D1)
 	'Now we print out our Dictionary | Log
 	arrD1Keys = D1.Keys 'D1 is Top level dictionary with FacIDs as keys    
 
-    For i = 0 to UBound(arrD1Keys) 
-        Set D2 = D1.Item(arrD1Keys(i)) 'D2 is the Facility dictionary with PointTags as keys
-        arrD2Keys = D2.Keys
-        For j = 0 to UBound(arrD2Keys)
-            Set D3 = D2.Item(arrD2Keys(j)) 'D3 is the Point dictionary filled with point info
-            If D3.Item("Quality") = "Good" Then
-                If CInt(D3.Item("Value")) >= 0 Then
-                    fileOut.Writeline "LIQUID METER," & D3.Item("Desc") & " Water" & "," & D3.Item("PointID") & "," & TimeStampVal & "," & D3.Item("Value") & "," & BSandW
-                End If
-            Else
-                fileBad.Writeline arrD2Keys(j) & "|" & D3.Item("Quality")
-            End If
-        Next
+	For i = 0 to UBound(arrD1Keys) 
+		Set D2 = D1.Item(arrD1Keys(i)) 'D2 is the Facility dictionary with PointTags as keys
+		arrD2Keys = D2.Keys
+		For j = 0 to UBound(arrD2Keys)
+			Set D3 = D2.Item(arrD2Keys(j)) 'D3 is the Point dictionary filled with point info
+			If D3.Item("Quality") = "Good" Then
+				If CInt(D3.Item("Value")) >= 0 Then
+					fileOut.Writeline "LIQUID METER," & D3.Item("Desc") & " Water" & "," & D3.Item("PointID") & "," & TimeStampVal & "," & D3.Item("Value") & "," & BSandW
+				Else
+					fileBad.Writeline arrD2Keys(j) & "|Quality good but value negative|Value:" & D3.Item("Value")
+				End If
+			Else
+				fileBad.Writeline arrD2Keys(j) & "|" & D3.Item("Quality")
+			End If
+		Next
 	Next
 	
 	Call WriteLogSucc("Facility Type finished getting values for " & D1.Item("Type"), 2)
