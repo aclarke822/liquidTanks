@@ -10,16 +10,16 @@ Option Explicit
 'Facility Types: OIL_PAD , OIL_WELLS, SWD_WELLS
 
 'On Error Resume Next
-'siteUIS is FRANK
-Dim siteUIS, sitePNT, LogLevel
-siteUIS = "FRANK.UIS" 
-sitePNT = "FRANK.PNT"
+Dim strSite : strSite = "FRANK"
+Dim strSiteUIS : strSiteUIS = strSite & ".UIS" 
+Dim strSitePNT : strSitePNT = strSite & ".PNT"
+Dim strStatusPointTag : strStatusPointTag = strSite & ".UIS:BATCH_STATUS_LIQWAT"
 
 'Set Log Level 
 '| 0 = No Log
 '| 1 = Important
 '| 2 = Everything
-LogLevel = 2
+Dim LogLevel : LogLevel = 2
 
 'Now - Date get
 Dim NowDateGet : NowDateGet = Month(now()) &"-"& Day(now()) &"-"& Year(now()) & " " & Hour(now()) &"-"& Minute(now()) &"-"& Second(now())
@@ -28,46 +28,43 @@ Dim NowDateGet : NowDateGet = Month(now()) &"-"& Day(now()) &"-"& Year(now()) & 
 Dim objFso : Set objFso = CreateObject("Scripting.FileSystemObject")
 Dim PntClient : Set PntClient = CreateObject("CxPnt.PntClient")
 Dim fileOut : Set fileOut = objFso.CreateTextFile("C:\CygNet\Scripts\TempGood\LiquidMeterWater " & NowDateGet & ".csv")
-Dim logFile : Set logFile = objFso.CreateTextFile("C:\CygNet\Scripts\TempLog\LiquidMeterWaterLog.txt")
-Dim badFile : Set badFile = objFso.CreateTextFile("C:\CygNet\Scripts\Bad\LiquidMeterWaterBad.txt")
+Dim fileLog : Set fileLog = objFso.CreateTextFile("C:\CygNet\Scripts\TempLog\LiquidMeterWaterLog.txt")
+Dim fileBad : Set fileBad = objFso.CreateTextFile("C:\CygNet\Scripts\Bad\LiquidMeterWaterBad.txt")
 Dim objGlobFunc : Set objGlobFunc = CreateObject("CxScript.GlobalFunctions")
+
+'Log 
+Call LogHeader(LogLevel)
+Call WriteLogSucc("Successfully created all objects", 2)
 
 'Print the header of the ProdView 
 fileOut.Writeline "prodview scada import"
 fileOut.Writeline "1.0"
 fileOut.Writeline "imperial"
 
-badFile.Writeline "Facility ID & Tank Description | Reason For Failure"  
-badFile.Writeline "---------------------------------------------------"
+fileBad.Writeline "Facility ID & Tank Description | Reason For Failure"  
+fileBad.Writeline "---------------------------------------------------"
 
 'Connect
-PntClient.Connect(sitePNT)
-
+PntClient.Connect(strSitePNT)
 objFac.UpdateNow()
 
-'Log 
-Call LogHeader(LogLevel)
-Call WriteLogSucc("Successfully created all objects", 2)
-
 'Global Function Objects
-Dim f_site : f_site = "FRANK"
-Dim f_status : f_status = f_site & ".UIS:BATCH_STATUS_LIQWAT"
 objGlobFunc.EnableLiveMode True
-objGlobFunc.setpoint f_status, "In-Progress", now
+objGlobFunc.setpoint strStatusPointTag, "In-Progress", now
 
 'Create the Facility TagLists 
 'Needs error checking and testing
 Dim arrFacTypes : arrFacTypes = Array("OIL_PAD", "OIL_WELLS", "SWD_WELLS")
 For i = 0 to UBound(arrFacTypes)
-    Call WriteToFile(PrepareDictionary(GetXMLCurrentValues(siteUIS, arrFacTypes(i)), arrFacTypes(i)))
+    Call WriteToFile(PrepareDictionary(GetXMLCurrentValues(strSiteUIS, arrFacTypes(i)), arrFacTypes(i)))
     Call WriteLogSucc("Successfully processed " & arrFacTypes(i), 2)
 Next
 
 'FTP Copy over
 Call Copy("C:\CygNet\Scripts\TempGood", "\\wstr.com\ftp\CYGNET\PRD", "LiquidMeterWater " & NowDateGet & ".csv")
 fileOut.close
-logFile.close
-badFile.close
+fileLog.close
+fileBad.close
 
 'Archive 
 Call Archive("C:\CygNet\Scripts\TempGood\LiquidMeterWater " & NowDateGet & ".csv", "C:\CygNet\Scripts\Archive\LiquidMeterWater " & NowDateGet & ".csv")
@@ -75,9 +72,9 @@ Call Archive("C:\CygNet\Scripts\TempLog\LiquidMeterWaterLog.txt", "C:\CygNet\Scr
 
 'Status report
 If err.number = 0 then 
-	objGlobFunc.setpoint f_status, "Complete", now
+	objGlobFunc.setpoint strStatusPointTag, "Complete", now
 ElseIf err.number <> 0 then 
-	objGlobFunc.setpoint f_status, "Complete w Errors", now
+	objGlobFunc.setpoint strStatusPointTag, "Complete w Errors", now
 end If
 
 '===============================
@@ -88,7 +85,7 @@ Function GetXMLCurrentValues(strSiteServ, strFacType)
     'The input is an entire TagList from the GetFacilityTagList function
     Dim objFac : Set objFac = CreateObject("CxScript.Facilities")
     Dim objPoints : Set objPoints = CreateObject("CxScript.Points")	
-    Dim strXML, arrPoints(), i, j, tag, maxCount, arrTagList, pntArrayCnt, strFacTag
+    Dim strXML, arrPoints(), i, j, strPointTag, arrTagList, strFacTag
 
     objFac.GetFacilityTagList strSiteServ, "facility_is_active=Y;facility_type=" & strFacType, arrTagList
     Redim arrPoints(UBound(arrTagList) + 1)
@@ -102,17 +99,17 @@ Function GetXMLCurrentValues(strSiteServ, strFacType)
 		strFacTag = arrTagList(i)
 		strFacType = objFac.GetFacilityAttribute(strFacTag, "FACILITY_TYPE")
 		For j = 0 to UBound(arrStrUDC)
-			If strFacType = "OIL_WELLS" Then
-				tag = Replace(strFacTag,"::",":") & "_VWY0"
+			If strFacType = "OIL_WELLS" Then 'Could do a Switch here but this is fine too. Other options as well
+				strPointTag = Replace(strFacTag,"::",":") & "_VWY0"
 			ElseIf strFacType = "SWD_WELLS" Then
-                tag = Replace(strFacTag,"::",":") & "_INJVOLPD"
+                strPointTag = Replace(strFacTag,"::",":") & "_INJVOLPD"
             ElseIf strFacType = "OIL_PAD" Then
-                tag = Replace(strFacTag,"::",":") & "_VWY"
+                strPointTag = Replace(strFacTag,"::",":") & "_VWY"
             Else
                 Wscript.Echo "This should never be displayed. Ever. If so, something is wrong. 04/24/20."
 			end If 
-			strXML = strXML & "<node cygTag=" & chr(34) & tag & chr(34) & " />"
-			arrPoints(i) = tag
+			strXML = strXML & "<node cygTag=" & chr(34) & strPointTag & chr(34) & " />"
+			arrPoints(i) = strPointTag
 		Next
 	Next
 	strXML = strXML & "</Points></cygPtInfo>"
@@ -187,9 +184,8 @@ End Function
 
 Sub WriteToFile(D1)
 	'Variables 
-	Dim i, j, k, arrD1Keys, printDate, TimeStampVal, BSandW, D2, D3
-	printDate = Date() - 1
-	TimeStampVal = CheckTimeStamp(printDate)
+	Dim i, j, k, arrD1Keys, TimeStampVal, BSandW, D2, D3
+	TimeStampVal = CheckTimeStamp(Date() - 1)
 	BSandW = 100
 	
 	'Now we print out our Dictionary | Log
@@ -205,7 +201,7 @@ Sub WriteToFile(D1)
                     fileOut.Writeline "LIQUID METER," & D3.Item("Desc") & " Water" & "," & D3.Item("PointID") & "," & TimeStampVal & "," & D3.Item("Value") & "," & BSandW
                 End If
             Else
-                badFile.Writeline arrD2Keys(j) & "|" & D3.Item("Quality")
+                fileBad.Writeline arrD2Keys(j) & "|" & D3.Item("Quality")
             End If
         Next
 	Next
@@ -215,21 +211,21 @@ End Sub
 
 Sub WriteLogSucc(str, level)
 	If level => 2 Then 
-		logFile.Writeline now &" - "& str
+		fileLog.Writeline now &" - "& str
 	End If 
 End Sub
 
 Sub WriteLogInfo(str, level)
 	If level => LogLevel Then 
-		logFile.Writeline now &" - "& str
+		fileLog.Writeline now &" - "& str
 	End If 
 End Sub
 
 Sub LogHeader(level)
 	If level => LogLevel Then
-		logFile.Writeline now &" - Time Log Starts"
-		logFile.Writeline ""
-		logFile.Writeline "Begin log: "
+		fileLog.Writeline now &" - Time Log Starts"
+		fileLog.Writeline ""
+		fileLog.Writeline "Begin log: "
 	End If 
 End Sub
 
@@ -381,10 +377,10 @@ End Function
 
 Function Copy(source, destination, file)
 	Call WriteLogInfo("Copying files to remote location...", 2)
-	Dim WshShellScriptExec, WSHShell, strLogFile, strCmd
+	Dim WshShellScriptExec, WSHShell, strfileLog, strCmd
 	Set WSHShell = CreateObject("Wscript.Shell")
-	strLogFile = source & "\CopyProcess.Log"
-	strCmd = "robocopy """ & source & """ """ & destination & """ """ & file & """ /XO /NFL /NDL /NP /R:0 /W:1 /LOG+:""" & strLogFile &""""
+	strfileLog = source & "\CopyProcess.Log"
+	strCmd = "robocopy """ & source & """ """ & destination & """ """ & file & """ /XO /NFL /NDL /NP /R:0 /W:1 /LOG+:""" & strfileLog &""""
 	
 	Call WriteLogInfo("Cmd: " & strCmd, 2)
 	WshShellScriptExec = WshShell.Run(strCmd, 0, True)
