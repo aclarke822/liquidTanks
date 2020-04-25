@@ -211,7 +211,7 @@ Sub WriteToFile(D1)
 End Sub
 
 Sub WriteLogSucc(str, level)
-	If level => 2 Then 
+	If level => LogLevel Then 
 		fileLog.Writeline now &" - "& str
 	End If 
 End Sub
