@@ -250,9 +250,7 @@ Function CheckValue(value)
 End Function
 
 Function GetFacTag(PntTag)
-	Dim strUdcFunct
-	strUdcFunct = Split(PntTag, "_")(UBound(Split(PntTag, "_")))
-	GetFacTag = Replace(Replace(PntTag, "_" & strUdcFunct,""),":","::")
+	GetFacTag = Replace(Replace(PntTag, "_" & GetUDC(PntTag),""),":","::")
 End Function
 
 Function GetUDC(PntTag)
